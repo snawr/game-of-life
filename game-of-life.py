@@ -1,17 +1,8 @@
-from distutils import text_file
-from operator import ge
 import pygame
 import numpy as np
 import random
 
 ### TODO ###
-
-#zmiana zawijanych krawedzi na przycisk
-#gotowe kształty do wklejenia z toolbara
-#zwiekszenie rozmiaru pędzla
-#dynamiczne zoomowanie
-#zrobic relacyjne polozenie napisow
-
 
 
 ### INIT ###
@@ -25,12 +16,12 @@ button_size = (int(0.7*side_bar_size), int(0.4*side_bar_size))
 
 win_width, win_height = game_width+side_bar_size, game_height+lower_bar_size
 
-grid_resolution = 5
+pixel_size = 10
 FPS = 60
 generation_time = 1
 start_simulation = False
 
-width, height = game_width//grid_resolution, game_height//grid_resolution
+width, height = game_width//pixel_size, game_height//pixel_size
 
 window = pygame.display.set_mode((win_width, win_height))
 pygame.display.set_caption("Game of life")
@@ -43,6 +34,7 @@ light_gray_color = (201, 201, 199)
 dark_gray_color = (110, 110, 110)
 black_color = (0, 0, 0)
 yellow_color = (243, 250, 35)
+light_yellow_color = (255, 255, 102)
 blue_color = (10, 60, 209)
 light_blue_color = (79, 204, 247)
 lighter_blue_color = (165, 228, 250)
@@ -57,19 +49,18 @@ random_seed_button_text = 'Random seed'
 clear_button_posy = int(random_seed_button_posy + button_size[1] + min(0.05*game_height,15))    #do zmiany - dla wiekszej ilosci przyciskow
 clear_button_text = 'Clear'
 
-
-
-
+run_stop_button_posy = int(game_height - button_size[1] - 15)
+run_stop_button_text = ('Run', 'Pause')
 
 def randomize_array(main_array, width, height, density=0.3):
+
     for row in range(width):
         for col in range(height):
         
             main_array[row, col] = int((random.random() + density))
         
-
-
 def evolve(mask):
+
     count = 0
     for ind_r, row in enumerate(mask):
         for ind_c, column in enumerate(row):
@@ -97,7 +88,8 @@ def evolve(mask):
             return 0
 
 
-def new_generation(frame):  
+def new_generation(frame): 
+
     new_frame = np.zeros( (width, height)).astype(np.int64)
 
     for ind_r, row in enumerate(frame):
@@ -163,11 +155,12 @@ def gui():
     text_generation_count = gui_font.render('GENERATION: '+ str(generation_count), 1, white_color)
     window.blit(text_generation_count, (game_width - text_generation_count.get_width(), win_height - text_generation_count.get_height()))
 
-def render_button(posx, posy, width, height, text):
+def render_button(posx, posy, width, height, text, runcolor = light_gray_color):
 
     button_rect = pygame.Rect(posx, posy, width, height)
     if start_simulation:
-        pygame.draw.rect(window, light_gray_color, button_rect)
+        pygame.draw.rect(window, runcolor, button_rect)
+
     else:
         pygame.draw.rect(window, lighter_blue_color, button_rect)
 
@@ -181,6 +174,10 @@ def button_pressed(button, pos):
             return True
     if button=='CLEAR':
         if pos[0] in range (button_posx, button_posx + button_size[0]) and pos[1] in range (clear_button_posy, clear_button_posy + button_size[1]):
+            return True
+    
+    if button=='RUN/STOP':
+        if pos[0] in range (button_posx, button_posx + button_size[0]) and pos[1] in range (run_stop_button_posy, run_stop_button_posy + button_size[1]):
             return True
 
 def draw_outline(offset=4):
@@ -208,6 +205,10 @@ def draw_window(resolution, main_array):
     gui()
     render_button(button_posx, random_seed_button_posy, button_size[0], button_size[1], random_seed_button_text)
     render_button(button_posx, clear_button_posy, button_size[0], button_size[1], clear_button_text)
+    if start_simulation==True:
+        render_button(button_posx, run_stop_button_posy, button_size[0], button_size[1], run_stop_button_text[1], light_yellow_color)
+    else:
+        render_button(button_posx, run_stop_button_posy, button_size[0], button_size[1], run_stop_button_text[0])
 
     pygame.display.update()
 
@@ -227,7 +228,24 @@ def main():
 
     while run:
         clock.tick(FPS)
-        draw_window(grid_resolution, main_array)
+        draw_window(pixel_size, main_array)
+        pos = pygame.mouse.get_pos()
+        click = pygame.mouse.get_pressed()
+
+        if not start_simulation:
+
+            if click[0] == True:    #left button pressed - continous
+                if pos[0]<game_width and pos[1]<game_height:
+                    main_array = update_grid(pixel_size, main_array, pos, 1)
+                    generation_count=0
+                    
+            
+            if click[1] == True:    #right button pressed
+                if pos[0]<game_width and pos[1]<game_height:
+                    main_array = update_grid(pixel_size, main_array, pos, 0)
+                    generation_count=0
+
+                draw_window(pixel_size, main_array)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -237,34 +255,32 @@ def main():
                 if event.key == pygame.K_SPACE and main_array.any():    #if space was pressed and array has any elements
                     start_simulation = not start_simulation
 
-        
-        if not start_simulation:
-            pos = pygame.mouse.get_pos()
-            #print(pos)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                # 1 is the left mouse button, 2 is middle, 3 is right.
+                
+                if not start_simulation:
 
-            click = pygame.mouse.get_pressed()
-            if click[0] == True:    #left button pressed
-                if pos[0]<game_width and pos[1]<game_height:
-                    main_array = update_grid(grid_resolution, main_array, pos, 1)
-                    generation_count=0
+                    if event.button == 1:    #left button pressed - single
 
-                elif button_pressed('RANDOM', pos):
-                    randomize_array(main_array, width, height)
-                    generation_count = 0
+                        if button_pressed('RANDOM', pos):
+                            randomize_array(main_array, width, height)
+                            generation_count = 0
 
-                elif button_pressed('CLEAR', pos):
-                    main_array = np.zeros((width, height)).astype(np.int64)
-                    generation_count = 0
+                        elif button_pressed('CLEAR', pos):
+                            main_array = np.zeros((width, height)).astype(np.int64)
+                            generation_count = 0
+                        
+                        elif button_pressed('RUN/STOP', pos) and main_array.any():
+                            start_simulation = True
+                            
 
-                draw_window(grid_resolution, main_array)
+                        draw_window(pixel_size, main_array)
 
-            if click[2] == True:    #right button pressed
-                if pos[0]<game_width and pos[1]<game_height:
-                    main_array = update_grid(grid_resolution, main_array, pos, 0)
-                    generation_count=0
-                else:
-                    pass
-                draw_window(grid_resolution, main_array)
+            
+                elif event.button == 1:    #left button pressed
+                    if button_pressed('RUN/STOP', pos):
+                        start_simulation = False
+                            
 
 
         if (pygame.time.get_ticks() - tick) >= generation_time and start_simulation:
@@ -272,7 +288,7 @@ def main():
             if not main_array.any():
                 start_simulation = False
             else:
-                draw_window(grid_resolution, main_array)
+                draw_window(pixel_size, main_array)
                 main_array = new_generation(main_array)
                 generation_count += 1
                 tick = pygame.time.get_ticks()
